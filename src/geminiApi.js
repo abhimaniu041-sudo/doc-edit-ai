@@ -26,8 +26,18 @@ export async function editImageWithGemini(apiKey, base64Data, mimeType, prompt) 
   });
 
   if (!res.ok) {
-    const errText = await res.text();
-    throw new Error(`API error (${res.status}): ${errText}`);
+    if (res.status === 429) {
+      throw new Error(
+        "Google ne quota block kar diya hai (free tier abhi image models ke liye 0 hai). Google AI Studio mein billing link karein ya thodi der baad naya API key try karein."
+      );
+    }
+    if (res.status === 400) {
+      throw new Error("Request format galat hai ya API key invalid hai. Settings mein API key check karein.");
+    }
+    if (res.status === 403) {
+      throw new Error("API key ke paas is model ka access nahi hai. Naya key generate karein.");
+    }
+    throw new Error(`Google se error aaya (code ${res.status}). Thodi der baad try karein.`);
   }
 
   const data = await res.json();
@@ -45,7 +55,7 @@ export async function editImageWithGemini(apiKey, base64Data, mimeType, prompt) 
   }
 
   if (!imageOut) {
-    throw new Error(textOut || "Model ne koi image return nahi ki. Command clear karke dobara try karein.");
+    throw new Error(textOut || "Model ne image return nahi ki. Command clear karke dobara try karein.");
   }
 
   return imageOut;
