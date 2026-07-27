@@ -2,12 +2,12 @@ import React, { useState, useEffect, useRef } from 'react'
 import { Preferences } from '@capacitor/preferences'
 import { Filesystem, Directory } from '@capacitor/filesystem'
 import { Share } from '@capacitor/share'
-import { editImageWithGemini } from './geminiApi.js'
+import { uploadImage, editImage } from './pollinationsApi.js'
 
 export default function App() {
-  const [apiKey, setApiKey] = useState('')
+  const [token, setToken] = useState('')
   const [showSettings, setShowSettings] = useState(false)
-  const [imageData, setImageData] = useState(null) // { base64, mimeType, previewUrl }
+  const [imageData, setImageData] = useState(null)
   const [command, setCommand] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -15,14 +15,13 @@ export default function App() {
 
   useEffect(() => {
     (async () => {
-      const { value } = await Preferences.get({ key: 'gemini_api_key' })
-      if (value) setApiKey(value)
-      else setShowSettings(true)
+      const { value } = await Preferences.get({ key: 'pollinations_token' })
+      if (value) setToken(value)
     })()
   }, [])
 
-  const saveApiKey = async () => {
-    await Preferences.set({ key: 'gemini_api_key', value: apiKey })
+  const saveToken = async () => {
+    await Preferences.set({ key: 'pollinations_token', value: token })
     setShowSettings(false)
   }
 
@@ -31,7 +30,7 @@ export default function App() {
     if (!file) return
     const reader = new FileReader()
     reader.onload = () => {
-      const result = reader.result // data:image/png;base64,xxxx
+      const result = reader.result
       const [meta, base64] = result.split(',')
       const mimeType = meta.match(/data:(.*);base64/)[1]
       setImageData({ base64, mimeType, previewUrl: result })
@@ -41,14 +40,14 @@ export default function App() {
   }
 
   const handleApply = async () => {
-    if (!apiKey) { setShowSettings(true); return }
     if (!imageData) { setError('Pehle ek document image upload karein.'); return }
     if (!command.trim()) { setError('Kya karna hai wo likhein (command).'); return }
 
     setLoading(true)
     setError('')
     try {
-      const result = await editImageWithGemini(apiKey, imageData.base64, imageData.mimeType, command)
+      const publicUrl = await uploadImage(imageData.base64, imageData.mimeType)
+      const result = await editImage(publicUrl, command, token)
       const newPreview = `data:${result.mimeType};base64,${result.data}`
       setImageData({ base64: result.data, mimeType: result.mimeType, previewUrl: newPreview })
       setCommand('')
@@ -63,16 +62,9 @@ export default function App() {
     if (!imageData) return
     try {
       const fileName = `docedit_${Date.now()}.png`
-      await Filesystem.writeFile({
-        path: fileName,
-        data: imageData.base64,
-        directory: Directory.Documents
-      })
+      await Filesystem.writeFile({ path: fileName, data: imageData.base64, directory: Directory.Documents })
       const uriResult = await Filesystem.getUri({ path: fileName, directory: Directory.Documents })
-      await Share.share({
-        title: 'Edited Document',
-        url: uriResult.uri
-      })
+      await Share.share({ title: 'Edited Document', url: uriResult.uri })
     } catch (err) {
       setError('Save/Share fail hua: ' + err.message)
     }
@@ -88,17 +80,17 @@ export default function App() {
       {showSettings && (
         <div className="modal-overlay">
           <div className="modal">
-            <h2>Gemini API Key</h2>
-            <p className="hint">Free key: aistudio.google.com/apikey se banayein</p>
+            <h2>Optional Token</h2>
+            <p className="hint">Bina token ke bhi chal jaayega. Zyada limit ke liye auth.pollinations.ai se free token banayein.</p>
             <input
               type="text"
-              placeholder="API key paste karein"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
+              placeholder="Token (optional)"
+              value={token}
+              onChange={(e) => setToken(e.target.value)}
             />
             <div className="modal-actions">
-              <button onClick={saveApiKey} disabled={!apiKey}>Save</button>
-              {apiKey && <button className="secondary" onClick={() => setShowSettings(false)}>Band karein</button>}
+              <button onClick={saveToken}>Save</button>
+              <button className="secondary" onClick={() => setShowSettings(false)}>Band karein</button>
             </div>
           </div>
         </div>
