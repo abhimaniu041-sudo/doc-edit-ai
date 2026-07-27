@@ -2,10 +2,10 @@ import React, { useState, useEffect, useRef } from 'react'
 import { Preferences } from '@capacitor/preferences'
 import { Filesystem, Directory } from '@capacitor/filesystem'
 import { Share } from '@capacitor/share'
-import { uploadImage, editImage } from './pollinationsApi.js'
+import { editImage } from './pollinationsApi.js'
 
 export default function App() {
-  const [token, setToken] = useState('')
+  const [apiKey, setApiKey] = useState('')
   const [showSettings, setShowSettings] = useState(false)
   const [imageData, setImageData] = useState(null)
   const [command, setCommand] = useState('')
@@ -15,13 +15,14 @@ export default function App() {
 
   useEffect(() => {
     (async () => {
-      const { value } = await Preferences.get({ key: 'pollinations_token' })
-      if (value) setToken(value)
+      const { value } = await Preferences.get({ key: 'pollinations_api_key' })
+      if (value) setApiKey(value)
+      else setShowSettings(true)
     })()
   }, [])
 
-  const saveToken = async () => {
-    await Preferences.set({ key: 'pollinations_token', value: token })
+  const saveApiKey = async () => {
+    await Preferences.set({ key: 'pollinations_api_key', value: apiKey })
     setShowSettings(false)
   }
 
@@ -40,14 +41,14 @@ export default function App() {
   }
 
   const handleApply = async () => {
+    if (!apiKey) { setShowSettings(true); return }
     if (!imageData) { setError('Pehle ek document image upload karein.'); return }
     if (!command.trim()) { setError('Kya karna hai wo likhein (command).'); return }
 
     setLoading(true)
     setError('')
     try {
-      const publicUrl = await uploadImage(imageData.base64, imageData.mimeType)
-      const result = await editImage(publicUrl, command, token)
+      const result = await editImage(imageData.base64, imageData.mimeType, command, apiKey)
       const newPreview = `data:${result.mimeType};base64,${result.data}`
       setImageData({ base64: result.data, mimeType: result.mimeType, previewUrl: newPreview })
       setCommand('')
@@ -80,17 +81,17 @@ export default function App() {
       {showSettings && (
         <div className="modal-overlay">
           <div className="modal">
-            <h2>Optional Token</h2>
-            <p className="hint">Bina token ke bhi chal jaayega. Zyada limit ke liye auth.pollinations.ai se free token banayein.</p>
+            <h2>Pollinations API Key</h2>
+            <p className="hint">Free key: enter.pollinations.ai par signup karein, koi card nahi chahiye</p>
             <input
               type="text"
-              placeholder="Token (optional)"
-              value={token}
-              onChange={(e) => setToken(e.target.value)}
+              placeholder="API key paste karein"
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
             />
             <div className="modal-actions">
-              <button onClick={saveToken}>Save</button>
-              <button className="secondary" onClick={() => setShowSettings(false)}>Band karein</button>
+              <button onClick={saveApiKey} disabled={!apiKey}>Save</button>
+              {apiKey && <button className="secondary" onClick={() => setShowSettings(false)}>Band karein</button>}
             </div>
           </div>
         </div>
