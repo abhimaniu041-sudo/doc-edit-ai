@@ -1,0 +1,6 @@
+{
+  "appId": "com.abhi8.docedit",
+  "appName": "DocEditAI",
+  "webDir": "dist",
+  "bundledWebRuntime": false
+}
